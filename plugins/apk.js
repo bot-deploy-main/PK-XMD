@@ -49,8 +49,8 @@ _Powered by Pkdriller - PK-XMD_`;
         forwardingScore: 999,
         isForwarded: true,
         forwardedNewsletterMessageInfo: {
-          newsletterName: "PK-XMD Verified",
-          newsletterJid: "120363025736204232@newsletter",
+          newsletterName: "PK-XMD scanned and approved",
+          newsletterJid: "120363288304618280@newsletter",
         },
         externalAdReply: {
           title: "APK Downloader",

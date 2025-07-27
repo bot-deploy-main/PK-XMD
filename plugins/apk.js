@@ -1,92 +1,74 @@
-const { cmd } = require('../command');
-const axios = require('axios');
-const fs = require('fs');
-const path = require('path');
-const config = require('../config');
+const axios = require("axios");
+const { cmd } = require("../command");
+const config = require("../config");
 
 cmd({
   pattern: "apk",
-  alias: ["app", "aptoide"],
   desc: "Download APK from Aptoide",
-  category: "Downloader",
+  category: "download",
   filename: __filename,
+  use: "<app name>",
   react: "📦"
-}, async (conn, m, store, { from, q, react }) => {
+}, async (conn, m, store, { from, q, reply }) => {
   try {
-    if (!q) return m.reply("❌ Please provide the name of the app.\nExample: `.apk Instagram`");
+    if (!q) return reply("❌ Please provide the app name to search.");
 
-    await react("⏳");
+    await conn.sendMessage(from, { react: { text: "⏳", key: m.key } });
 
-    const res = await axios.get(`http://ws75.aptoide.com/api/7/apps/search/query=${q}/limit=1`);
-    const data = res.data;
+    const apiUrl = `http://ws75.aptoide.com/api/7/apps/search/query=${q}/limit=1`;
+    const { data } = await axios.get(apiUrl);
 
-    if (!data?.datalist?.list?.length) {
-      return m.reply("⚠️ No results found for the app you searched.");
-    }
+    if (!data?.datalist?.list?.length) return reply("⚠️ No results found for that app name.");
 
     const app = data.datalist.list[0];
     const appSize = (app.size / 1048576).toFixed(2); // MB
 
-    const caption = `╭─❖  *APK Downloader*
+    const caption = `╭───⪩ *APK Downloader* ⪨───╮
 ┃ 📦 *Name:* ${app.name}
-┃ 📁 *Size:* ${appSize} MB
-┃ 📦 *Package:* ${app.package}
-┃ 🗓 *Updated:* ${app.updated}
-┃ 👨‍💻 *Developer:* ${app.developer.name}
-╰─────────────⭓
-*Powered by Pkdriller*`;
+┃ 🏷️ *Package:* ${app.package}
+┃ 💾 *Size:* ${appSize} MB
+┃ 🧑‍💻 *Developer:* ${app.developer.name}
+┃ 🗓️ *Updated:* ${app.updated}
+╰───────────────────────⪧
+_Powered by Pkdriller - PK-XMD_`;
 
-    const fakeVCard = {
-      key: {
-        fromMe: false,
-        participant: `0@s.whatsapp.net`,
-        remoteJid: "status@broadcast"
-      },
-      message: {
-        contactMessage: {
-          displayName: "WhatsApp",
-          vcard: `
-BEGIN:VCARD
-VERSION:3.0
-FN:WhatsApp Verified
-ORG:WhatsApp Inc.
-TEL;type=CELL;type=VOICE;waid=14155238886:+1 (415) 523-8886
-END:VCARD`
-        }
-      }
-    };
-
-    const thumbPath = path.join(__dirname, '../media/logo.jpg');
-    const thumbnail = fs.existsSync(thumbPath) ? fs.readFileSync(thumbPath) : null;
+    await conn.sendMessage(from, { react: { text: "⬇️", key: m.key } });
 
     await conn.sendMessage(from, {
       document: { url: app.file.path_alt },
+      mimetype: 'application/vnd.android.package-archive',
       fileName: `${app.name}.apk`,
-      mimetype: "application/vnd.android.package-archive",
       caption: caption,
       contextInfo: {
-        quotedMessage: fakeVCard.message,
+        quotedMessage: {
+          contactMessage: {
+            displayName: "WhatsApp Verified",
+            vcard: `BEGIN:VCARD\nVERSION:3.0\nFN:WhatsApp Verified\nORG:Meta Verified Inc.\nTEL;type=CELL;waid=254700000000:+254 700 000000\nEND:VCARD`
+          }
+        },
         forwardingScore: 999,
         isForwarded: true,
         forwardedNewsletterMessageInfo: {
-          newsletterJid: "120363288304618280@newsletter",
-          serverMessageId: "",
-          newsletterName: config.botName || "PK-XMD"
+          newsletterName: "PK-XMD Verified",
+          newsletterJid: "120363025736204232@newsletter",
         },
         externalAdReply: {
-          title: app.name,
-          body: "APK Downloader by Pkdriller",
-          thumbnail,
+          title: "APK Downloader",
+          body: "Get Android apps via Aptoide",
+          thumbnailUrl: "https://files.catbox.moe/glt48n.jpg",
+          sourceUrl: "https://aptoide.com",
           mediaType: 1,
           renderLargerThumbnail: true,
-          sourceUrl: app.store ? app.store.url : "https://aptoide.com"
+          showAdAttribution: true
         }
       }
-    }, { quoted: fakeVCard });
+    }, { quoted: m });
 
-    await react("✅");
+    await conn.sendMessage(from, { react: { text: "✅", key: m.key } });
+
   } catch (e) {
     console.error(e);
-    m.reply("❌ An error occurred while downloading the APK.");
+    reply("❌ An error occurred while fetching the APK.");
   }
 });
+            

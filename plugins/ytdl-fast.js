@@ -14,7 +14,6 @@ cmd({
 
   if (!q) return reply("Please provide a song name or URL.");
 
-  // Platforms
   const query = q;
   const platforms = [];
   if (query.includes('youtube.com') || query.includes('youtu.be')) platforms.push('youtube');
@@ -25,7 +24,6 @@ cmd({
   let track = null;
   let downloadData = null;
 
-  // Search functions
   const searchYouTube = async (query) => {
     const { videos } = await ytSearch(query);
     return videos?.length ? {
@@ -59,7 +57,6 @@ cmd({
     } : null;
   };
 
-  // Download functions
   const downloadYouTube = async (url) => {
     const res = await axios.get(`https://apis-keith.vercel.app/download/dlmp3?url=${encodeURIComponent(url)}`);
     return res.data?.result?.downloadUrl ? {
@@ -86,7 +83,6 @@ cmd({
     } : null;
   };
 
-  // Search and Download loop
   for (const platform of platforms) {
     try {
       const searchFn = { youtube: searchYouTube, soundcloud: searchSoundCloud, spotify: searchSpotify }[platform];
@@ -105,7 +101,6 @@ cmd({
 
   if (!track || !downloadData) return reply("❌ Could not download from any platform.");
 
-  // Construct contextInfo
   const fakeVCard = {
     key: {
       fromMe: false,
@@ -125,14 +120,14 @@ cmd({
     forwardingScore: 999,
     isForwarded: true,
     forwardedNewsletterMessageInfo: {
-      newsletterJid: "120363313124070136@newsletter",
+      newsletterJid: "120363288304618280@newsletter",
       newsletterName: "PK-XMD Music",
       serverMessageId: Math.floor(100000 + Math.random() * 999999)
     },
     externalAdReply: {
       title: track.title.length > 25 ? track.title.slice(0, 22) + "..." : track.title,
       body: "Now Playing via PK-XMD",
-      thumbnailUrl: downloadData.thumbnail || track.thumbnail || config.LOGO_URL,
+      thumbnailUrl: "https://files.catbox.moe/fgiecg.jpg", // ✅ Custom image here
       mediaType: 1,
       renderLargerThumbnail: true,
       sourceUrl: track.url,
@@ -143,14 +138,12 @@ cmd({
   const artist = downloadData.artist || track.artist || "Unknown Artist";
   const fileName = `${track.title} - ${artist}.${downloadData.format}`.replace(/[^\w\s.-]/gi, '');
 
-  // Send audio
   await conn.sendMessage(from, {
     audio: { url: downloadData.downloadUrl },
     mimetype: 'audio/mp4',
     contextInfo
   }, { quoted: m });
 
-  // Send as document too
   await conn.sendMessage(from, {
     document: { url: downloadData.downloadUrl },
     mimetype: `audio/${downloadData.format}`,

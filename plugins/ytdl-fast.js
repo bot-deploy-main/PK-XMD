@@ -10,9 +10,10 @@ cmd({
   use: "<song name>",
   react: "🎵",
   fromMe: false
-}, async (m, text, conn, msgHandler) => {
+}, async (m, text, conn) => {
   if (!text) return m.reply('*🔎 Please provide a song name!*')
 
+  // Fake quoted message for UI
   const qmsg = {
     key: {
       participant: "0@s.whatsapp.net",
@@ -26,18 +27,20 @@ cmd({
     }
   }
 
-  const infoMsg = `🎧 *Song Search:* ${text}\n\n🔰 Choose source:\n1️⃣ apis-keith\n2️⃣ siputzx\n3️⃣ dreaded.site\n\n_Send 1, 2 or 3 to choose source_`
+  const infoMsg = `🎧 *Song Search:* ${text}\n\n🔰 Choose source:\n1️⃣ apis-keith\n2️⃣ siputzx\n3️⃣ dreaded.site\n\n_Reply with 1, 2 or 3_`
   await conn.sendMessage(m.chat, { text: infoMsg }, { quoted: qmsg })
 
+  // Define the message handler
   const handler = async (res) => {
     if (!res.message || res.key.remoteJid !== m.chat || res.key.fromMe) return
 
-    const selected = res.message.conversation?.trim()
+    const selected = res.message?.conversation?.trim()
     if (!['1', '2', '3'].includes(selected)) {
       await conn.sendMessage(m.chat, { text: '*❌ Invalid choice. Please reply with 1, 2 or 3 only.*' }, { quoted: res })
       return
     }
 
+    // Select API
     let apiUrl
     switch (selected) {
       case '1':
@@ -50,6 +53,9 @@ cmd({
         apiUrl = `https://dreaded.site/api/yt/playmp3?text=${encodeURIComponent(text)}`
         break
     }
+
+    // Cleanup after reply is processed
+    conn.ev.off('messages.upsert', listener)
 
     try {
       const { data } = await axios.get(apiUrl)
@@ -81,22 +87,25 @@ cmd({
           }
         }
       }, { quoted: qmsg })
+
     } catch (err) {
       console.error(err)
       return m.reply('*⚠️ Failed to download audio. Try another source.*')
-    } finally {
-      conn.ev.off('messages.upsert', listener)
     }
   }
 
+  // Listener setup
   const listener = ({ messages }) => {
-    if (!messages[0]) return
-    handler(messages[0])
+    if (messages && messages[0]) {
+      handler(messages[0])
+    }
   }
 
   conn.ev.on('messages.upsert', listener)
 
-  // Optional timeout (auto-remove listener after 30 seconds)
-  setTimeout(() => conn.ev.off('messages.upsert', listener), 30000)
+  // Timeout: remove listener after 30 seconds
+  setTimeout(() => {
+    conn.ev.off('messages.upsert', listener)
+  }, 30000)
 })
-                             
+            

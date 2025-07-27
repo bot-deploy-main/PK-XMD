@@ -1,142 +1,149 @@
-const config = require('../config');
 const { cmd } = require('../command');
-const fetch = require('node-fetch');
-const { ytsearch } = require('@dark-yasiya/yt-dl.js');
+const config = require('../config');
+const axios = require('axios');
+const fs = require('fs');
 const { getBuffer } = require('../lib/functions');
 
 cmd({
   pattern: "play",
-  alias: ["ytmp3", "yta", "ytmusic"],
-  desc: "Download YouTube music",
-  category: "Downloader",
-  use: '.play < song name >',
+  desc: "Download YouTube music by name",
+  category: "Download",
   filename: __filename,
-  react: "🎵",
+  use: "<song name>",
+  react: "🎧",
   fromMe: false
-}, async (conn, m, msg, { q, from, reply, sender }) => {
-  try {
-    if (!q) return reply("Please provide a song name or YouTube URL!");
+}, async (m, q, conn) => {
+  if (!q) return m.reply("*🎵 Enter a song name to play!*");
 
-    const yt = await ytsearch(q);
-    if (!yt.results.length) return reply("No results found!");
-
-    const song = yt.results[0];
-    const apis = [
-      `https://gifted-api.vercel.app/api/download/ytmp3?url=${encodeURIComponent(song.url)}`,
-      `https://gifted-api.vercel.app/api/download/yta?url=${encodeURIComponent(song.url)}`,
-      `https://gifted-api.vercel.app/api/download/mp3?url=${encodeURIComponent(song.url)}`
-    ];
-
-    let finalUrl = null;
-    for (const api of apis) {
-      try {
-        const res = await fetch(api);
-        const json = await res.json();
-        if (json.result?.download_url) {
-          finalUrl = json.result.download_url;
-          break;
-        }
-      } catch (e) {
-        console.log(`❌ API failed: ${api}`);
+  // Fake Verified Quoted Contact
+  const fakeContact = {
+    key: {
+      participants: '0@s.whatsapp.net',
+      remoteJid: 'status@broadcast',
+      fromMe: false,
+      id: 'F1A2E3D4B5C6'
+    },
+    message: {
+      contactMessage: {
+        displayName: "WhatsApp Music",
+        vcard: `BEGIN:VCARD\nVERSION:3.0\nFN:WhatsApp Music\nORG:WhatsApp Inc.\nTEL;type=CELL;type=VOICE;waid=254700000000:+254 700 000000\nEND:VCARD`
       }
     }
+  };
 
-    if (!finalUrl) return reply("Failed to get audio. Try again later.");
+  // Try Source 1 - apis-keith
+  try {
+    let res = await axios.get(`https://apis-keith.vercel.app/api/ytplaymp3?q=${encodeURIComponent(q)}`);
+    if (!res?.data?.result?.url) throw "❌ Failed at source 1";
 
-    const menuMsg = {
-      image: { url: song.thumbnail },
-      caption: `🎧 *PK-XMD SONG DOWNLOADER*\n\n🎵 *Title:* ${song.title}\n🕒 *Duration:* ${song.timestamp}\n👁️ *Views:* ${song.views}\n👤 *Author:* ${song.author.name}\n\n_Reply with:_\n1️⃣ To get *AUDIO* 🎶\n2️⃣ To get as *DOCUMENT* 📄\n\nPowered by Pkdriller`,
+    let { title, url, duration, thumb } = res.data.result;
+    let buffer = await getBuffer(url);
+
+    await conn.sendMessage(m.chat, {
+      audio: buffer,
+      mimetype: 'audio/mp4',
+      ptt: false,
       contextInfo: {
-        mentionedJid: [sender],
-        forwardingScore: 999,
-        isForwarded: true,
+        mentionedJid: [m.sender],
         externalAdReply: {
-          title: `${song.title}`,
-          body: "PK-XMD • Audio Downloader",
-          mediaType: 1,
-          thumbnailUrl: song.thumbnail,
-          sourceUrl: 'https://whatsapp.com/channel/0029Vad7YNyJuyA77CtIPX0x',
-          renderLargerThumbnail: true,
+          title: `${title}`,
+          body: `Powered by Pkdriller`,
+          mediaType: 2,
+          thumbnail: await getBuffer(thumb),
+          mediaUrl: url,
+          sourceUrl: url,
           showAdAttribution: true
         },
+        forwardingScore: 999,
+        isForwarded: true,
         forwardedNewsletterMessageInfo: {
-          newsletterJid: '120363229837888194@newsletter',
-          newsletterName: config.botname || 'PK-XMD',
-          serverMessageId: 9
-        }
-      },
-      quoted: {
-        key: {
-          fromMe: false,
-          participant: "0@s.whatsapp.net",
-          remoteJid: "status@broadcast"
-        },
-        message: {
-          contactMessage: {
-            displayName: "WhatsApp",
-            vcard: `BEGIN:VCARD\nVERSION:3.0\nFN:WhatsApp Verified\nORG:Meta\nTEL;type=CELL;type=VOICE;waid=447710173736:+44 7710 173736\nEND:VCARD`
-          }
+          newsletterJid: "120363025076059663@newsletter",
+          newsletterName: "PK-XMD NEWS",
+          serverMessageId: 100
         }
       }
-    };
+    }, { quoted: fakeContact });
 
-    const sentMsg = await conn.sendMessage(from, menuMsg);
-    const messageId = sentMsg.key.id;
-
-    const handleReply = async (ev) => {
-      const rmsg = ev.messages[0];
-      if (!rmsg.message) return;
-      if (rmsg.key.remoteJid !== from) return;
-      if (!rmsg.message?.extendedTextMessage) return;
-      const stanzaId = rmsg.message.extendedTextMessage?.contextInfo?.stanzaId;
-      if (stanzaId !== messageId) return;
-
-      const text = rmsg.message?.conversation || rmsg.message?.extendedTextMessage?.text;
-      const buffer = await getBuffer(finalUrl);
-      if (!buffer) return conn.sendMessage(from, { text: "Download failed. Try again later." }, { quoted: rmsg });
-
-      if (text === "1") {
-        await conn.sendMessage(from, {
-          audio: buffer,
-          mimetype: "audio/mpeg",
-          fileName: `${song.title}.mp3`,
-          contextInfo: {
-            externalAdReply: {
-              title: song.title,
-              body: "PK-XMD • Audio Downloader",
-              thumbnailUrl: song.thumbnail,
-              mediaType: 1,
-              showAdAttribution: true,
-              sourceUrl: song.url,
-              renderLargerThumbnail: true
-            },
-            forwardingScore: 500,
-            isForwarded: true
-          }
-        }, { quoted: rmsg });
-      } else if (text === "2") {
-        await conn.sendMessage(from, {
-          document: buffer,
-          mimetype: "audio/mpeg",
-          fileName: `${song.title}.mp3`,
-          caption: song.title
-        }, { quoted: rmsg });
-      } else {
-        await reply("Invalid option. Reply with 1️⃣ or 2️⃣", rmsg);
-      }
-
-      conn.ev.off('messages.upsert', handleReply);
-    };
-
-    setTimeout(() => {
-      conn.ev.off("messages.upsert", handleReply);
-    }, 2 * 60 * 1000); // session timeout 2 min
-
-    conn.ev.on("messages.upsert", handleReply);
-
+    return;
   } catch (e) {
-    console.log(e);
-    reply("An error occurred. Please try again.");
+    console.log("Source 1 failed:", e.message || e);
+  }
+
+  // Try Source 2 - siputzx
+  try {
+    let res = await axios.get(`https://api.siputzx.my.id/api/search/ytplaymp3?text=${encodeURIComponent(q)}`);
+    if (!res?.data?.url) throw "❌ Failed at source 2";
+
+    let { title, url, thumbnail } = res.data;
+    let buffer = await getBuffer(url);
+
+    await conn.sendMessage(m.chat, {
+      audio: buffer,
+      mimetype: 'audio/mp4',
+      ptt: false,
+      contextInfo: {
+        mentionedJid: [m.sender],
+        externalAdReply: {
+          title: `${title}`,
+          body: `Powered by Pkdriller`,
+          mediaType: 2,
+          thumbnail: await getBuffer(thumbnail),
+          mediaUrl: url,
+          sourceUrl: url,
+          showAdAttribution: true
+        },
+        forwardingScore: 999,
+        isForwarded: true,
+        forwardedNewsletterMessageInfo: {
+          newsletterJid: "120363025076059663@newsletter",
+          newsletterName: "PK-XMD NEWS",
+          serverMessageId: 100
+        }
+      }
+    }, { quoted: fakeContact });
+
+    return;
+  } catch (e) {
+    console.log("Source 2 failed:", e.message || e);
+  }
+
+  // Try Source 3 - dreaded.site
+  try {
+    let res = await axios.get(`https://dreaded.site/api/ytplaymp3?query=${encodeURIComponent(q)}`);
+    if (!res?.data?.url) throw "❌ Failed at source 3";
+
+    let { title, url, thumbnail } = res.data;
+    let buffer = await getBuffer(url);
+
+    await conn.sendMessage(m.chat, {
+      audio: buffer,
+      mimetype: 'audio/mp4',
+      ptt: false,
+      contextInfo: {
+        mentionedJid: [m.sender],
+        externalAdReply: {
+          title: `${title}`,
+          body: `Powered by Pkdriller`,
+          mediaType: 2,
+          thumbnail: await getBuffer(thumbnail),
+          mediaUrl: url,
+          sourceUrl: url,
+          showAdAttribution: true
+        },
+        forwardingScore: 999,
+        isForwarded: true,
+        forwardedNewsletterMessageInfo: {
+          newsletterJid: "120363025076059663@newsletter",
+          newsletterName: "PK-XMD NEWS",
+          serverMessageId: 100
+        }
+      }
+    }, { quoted: fakeContact });
+
+    return;
+  } catch (e) {
+    console.log("Source 3 failed:", e.message || e);
+    return m.reply("❌ All sources failed. Try again later.");
   }
 });
-        
+      

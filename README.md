@@ -5,17 +5,25 @@
   <img src="https://files.catbox.moe/kroie9.jpg" />
 </p>
 
-
 <div align="center">
-
- 
 
 ## 𝐃𝐄𝐏𝐋𝐎𝐘 𝐒𝐄𝐓𝐔𝐏 ↕️
 **MUST FORK AND STAR THIS REPO**
 
-  <a href="https://github.com/mejjar00254/PK-XMD/fork"><img src="https://img.shields.io/github/forks/NaCkS-ai/PK-XMD?style=for-the-badge&logo=github&color=4c1&label=Fork%20PK-XMD" alt="Fork PK X MD" /></a>
+<a href="https://github.com/mejjar00254/PK-XMD/fork"><img src="https://img.shields.io/github/forks/NaCkS-ai/PK-XMD?style=for-the-badge&logo=github&color=4c1&label=Fork%20PK-XMD" alt="Fork PK X MD" /></a>
 
-<a><img src='https://i.imgur.com/LyHic3i.gif'/>
+<a><img src='https://i.imgur.com/LyHic3i.gif'/></a>
+
+---
+
+<div align="center">
+
+[![Download ZIP](https://img.shields.io/badge/Download%20ZIP-25D366?style=for-the-badge&logo=github&logoColor=white)](https://github.com/mejjar00254/PK-XMD/archive/refs/heads/main.zip)
+[![Follow on WhatsApp](https://img.shields.io/badge/Follow%20on%20WhatsApp-25D366?style=for-the-badge&logo=whatsapp&logoColor=white)](https://whatsapp.com/channel/0029Vad7YNyJuyA77CtIPX0x)
+
+</div>
+
+---
 
 ### 🔐 Step 2: Get Your Session ID
 

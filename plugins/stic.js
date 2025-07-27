@@ -1,73 +1,93 @@
-const config = require("../config");
-const { cmd } = require("../command");
-const axios = require("axios");
+const config = require('../config');
+const { cmd } = require('../command');
+const axios = require('axios');
+const moment = require('moment-timezone');
 
 cmd({
   pattern: "playx",
-  alias: ["ytmp3docx", "audiodocx", "ytax"],
-  category: "main",
-  react: "🎶",
-  desc: "Download YouTube audio",
-  use: ".play3 <query>",
-  filename: __filename
-}, async (conn, mek, m, { from, prefix, q, reply }) => {
+  alias: ["ytmusic", "ytax", "ytaudio", "ytmp3x"],
+  desc: "Download audio from YouTube with multiple fallback APIs",
+  category: "downloader",
+  filename: __filename,
+  react: "🎶"
+}, async (conn, m, text) => {
+  const { prefix, botName, menuImage } = config;
+  if (!text) return m.reply(`🎶 *Usage:* ${prefix}playx <song name>`);
+
+  await m.react("⏳");
+
+  let search, title, url;
   try {
-    if (!q) return reply("Please provide a song name or YouTube URL.");
+    const res = await axios.get(`https://api.davidcyriltech.my.id/api/youtube/search?query=${encodeURIComponent(text)}`);
+    search = res.data.result?.[0];
+    if (!search) throw new Error("No results.");
+    title = search.title;
+    url = search.url;
+  } catch (err) {
+    return m.reply("❌ Failed to fetch search result.");
+  }
 
-    const search = await axios.get(`https://yts.giftedtech.co.ke/?q=${encodeURIComponent(q)}`);
-    const result = search.data;
+  const apis = [
+    `https://api.davidcyriltech.my.id/api/youtube/mp3?url=${url}`,
+    `https://api.darkyasiya.repl.co/api/ytmp3?url=${url}`,
+    `https://dreaded.site/api/ytdl/mp3?url=${url}`
+  ];
 
-    if (!result?.videos?.length) return reply("❌ No results found.");
+  let audioBuffer, fileName;
+  for (const api of apis) {
+    try {
+      const { data } = await axios.get(api);
+      const dl = data.result?.audio || data.result?.url || data.url;
+      const audioRes = await axios.get(dl, { responseType: "arraybuffer" });
+      audioBuffer = audioRes.data;
+      fileName = `${title}.mp3`;
+      break;
+    } catch (e) {
+      continue;
+    }
+  }
 
-    const first = result.videos[0];
-    const videoUrl = first.url;
+  if (!audioBuffer) return m.reply("❌ All APIs failed. Try again later.");
 
-    const fallbackApis = [
-      `${config.GiftedTechApi}/api/download/ytmp3?apikey=${config.GiftedApiKey}&url=${encodeURIComponent(videoUrl)}`,
-      `${config.GiftedTechApi}/api/download/yta?apikey=${config.GiftedApiKey}&url=${encodeURIComponent(videoUrl)}`,
-      `${config.GiftedTechApi}/api/download/dlmp3?apikey=${config.GiftedApiKey}&url=${encodeURIComponent(videoUrl)}`,
-      `${config.GiftedTechApi}/api/download/mp3?apikey=${config.GiftedApiKey}&url=${encodeURIComponent(videoUrl)}`,
-      `${config.GiftedTechApi}/api/download/ytaudio?apikey=${config.GiftedApiKey}&url=${encodeURIComponent(videoUrl)}`,
-      `${config.GiftedTechApi}/api/download/ytmusic?apikey=${config.GiftedApiKey}&url=${encodeURIComponent(videoUrl)}`
-    ];
+  const now = moment().tz(config.timezone);
+  const timestamp = now.format("HH:mm");
+  const date = now.format("dddd, MMMM D YYYY");
 
-    let downloadUrl = null;
-
-    for (const api of fallbackApis) {
-      try {
-        const res = await axios.get(api);
-        if (res.data?.result?.download_url) {
-          downloadUrl = res.data.result.download_url;
-          break;
-        }
-      } catch (err) {
-        console.log("API failed:", api);
+  const vcard = {
+    key: {
+      fromMe: false,
+      participant: "0@s.whatsapp.net",
+      remoteJid: "status@broadcast"
+    },
+    message: {
+      contactMessage: {
+        displayName: botName,
+        vcard: `BEGIN:VCARD\nVERSION:3.0\nN:;${botName};;;\nFN:${botName}\nORG:Powered by Pkdriller\nTEL;type=CELL;type=VOICE;waid=254700000000:+254 700 000000\nEND:VCARD`
       }
     }
+  };
 
-    if (!downloadUrl) return reply("❌ Failed to fetch audio. Try a different keyword.");
+  const contextInfo = {
+    externalAdReply: {
+      title: `${botName} Music Downloader`,
+      body: `🎶 ${title}`,
+      thumbnail: await conn.fetchImageBuffer(menuImage),
+      mediaType: 2,
+      mediaUrl: url,
+      sourceUrl: url
+    },
+    forwardedNewsletterMessageInfo: {
+      newsletterName: botName,
+      newsletterJid: "120363183547395350@newsletter"
+    }
+  };
 
-    await conn.sendMessage(from, {
-      audio: { url: downloadUrl },
-      mimetype: "audio/mpeg",
-      fileName: `${first.name}.mp3`,
-      contextInfo: {
-        externalAdReply: {
-          title: first.name.length > 25 ? first.name.slice(0, 22) + "..." : first.name,
-          body: "Powered by PK-XMD",
-          mediaType: 1,
-          thumbnailUrl: first.thumbnail || "https://files.catbox.moe/fgiecg.jpg",
-          sourceUrl: "https://whatsapp.com/channel/0029Vad7YNyJuyA77CtIPX0x",
-          mediaUrl: "https://whatsapp.com/channel/0029Vad7YNyJuyA77CtIPX0x",
-          showAdAttribution: true,
-          renderLargerThumbnail: true
-        }
-      }
-    }, { quoted: mek });
-
-  } catch (error) {
-    console.error(error);
-    reply("❌ An error occurred. Try again later.");
-  }
+  await conn.sendMessage(m.chat, {
+    audio: audioBuffer,
+    fileName,
+    mimetype: 'audio/mp4',
+    ptt: false,
+    contextInfo,
+  }, { quoted: vcard });
 });
     

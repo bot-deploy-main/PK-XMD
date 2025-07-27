@@ -1,111 +1,78 @@
-const { cmd } = require('../command')
-const config = require('../config')
-const axios = require('axios')
+const { cmd } = require('../command');
+const config = require('../config');
+const { ytsearch } = require('@dark-yasiya/yt-dl.js');
 
 cmd({
-  pattern: "play",
-  desc: "Download audio from YouTube",
-  category: "Music",
-  filename: __filename,
-  use: "<song name>",
-  react: "🎵",
-  fromMe: false
-}, async (m, text, conn) => {
-  if (!text) return m.reply('*🔎 Please provide a song name!*')
+    pattern: "play", // separate from "play" to test first
+    alias: ["playmenu", "songx"],
+    react: "🎶",
+    desc: "Download YouTube song via source menu",
+    category: "main",
+    use: '.playx <query>',
+    filename: __filename
+}, async (conn, mek, m, { from, sender, reply, q }) => {
+    try {
+        if (!q) return reply("Please provide a song name or YouTube link.");
 
-  // Fake quoted message for UI
-  const qmsg = {
-    key: {
-      participant: "0@s.whatsapp.net",
-      remoteJid: "status@broadcast"
-    },
-    message: {
-      contactMessage: {
-        displayName: "WhatsApp",
-        vcard: `BEGIN:VCARD\nVERSION:3.0\nFN:WhatsApp Verified\nORG:WhatsApp Inc.\nTEL;type=CELL;type=VOICE;waid=447710173736:+44 7710 173736\nEND:VCARD`
-      }
-    }
-  }
+        const yt = await ytsearch(q);
+        if (!yt.results.length) return reply("No results found!");
 
-  const infoMsg = `🎧 *Song Search:* ${text}\n\n🔰 Choose source:\n1️⃣ apis-keith\n2️⃣ siputzx\n3️⃣ dreaded.site\n\n_Reply with 1, 2 or 3_`
-  await conn.sendMessage(m.chat, { text: infoMsg }, { quoted: qmsg })
+        const song = yt.results[0];
+        const searchMsg = `🎧 *Song:* ${song.title}\n\n🔰 Choose Source:\n1️⃣ apis-keith\n2️⃣ siputzx\n3️⃣ dreaded.site\n\n_Reply with 1, 2 or 3 within 30s_`;
 
-  // Define the message handler
-  const handler = async (res) => {
-    if (!res.message || res.key.remoteJid !== m.chat || res.key.fromMe) return
+        await conn.sendMessage(from, { text: searchMsg }, { quoted: mek });
 
-    const selected = res.message?.conversation?.trim()
-    if (!['1', '2', '3'].includes(selected)) {
-      await conn.sendMessage(m.chat, { text: '*❌ Invalid choice. Please reply with 1, 2 or 3 only.*' }, { quoted: res })
-      return
-    }
+        const handler = async ({ messages }) => {
+            const res = messages[0];
+            if (!res.message || res.key.remoteJid !== from || res.key.fromMe) return;
+            const response = res.message?.conversation?.trim();
 
-    // Select API
-    let apiUrl
-    switch (selected) {
-      case '1':
-        apiUrl = `https://apis-keith.vercel.app/api/youtube/playmp3?q=${encodeURIComponent(text)}`
-        break
-      case '2':
-        apiUrl = `https://api.siputzx.my.id/api/dl/playmp3?text=${encodeURIComponent(text)}`
-        break
-      case '3':
-        apiUrl = `https://dreaded.site/api/yt/playmp3?text=${encodeURIComponent(text)}`
-        break
-    }
+            if (!['1', '2', '3'].includes(response)) {
+                await conn.sendMessage(from, { text: "❌ Invalid choice. Reply with 1, 2, or 3 only." }, { quoted: res });
+                return;
+            }
 
-    // Cleanup after reply is processed
-    conn.ev.off('messages.upsert', listener)
+            let apiUrl;
+            if (response === '1') {
+                apiUrl = `https://apis-keith.vercel.app/api/youtube/playmp3?q=${encodeURIComponent(q)}`;
+            } else if (response === '2') {
+                apiUrl = `https://api.siputzx.my.id/api/dl/playmp3?text=${encodeURIComponent(q)}`;
+            } else if (response === '3') {
+                apiUrl = `https://dreaded.site/api/yt/playmp3?text=${encodeURIComponent(q)}`;
+            }
 
-    try {
-      const { data } = await axios.get(apiUrl)
-      const title = data.title || 'Music'
-      const url = data.url || data.result?.url || data.result
-      if (!url) return m.reply('*❌ Failed to get audio link.*')
+            conn.ev.off('messages.upsert', listener); // clean up
 
-      await conn.sendMessage(m.chat, {
-        audio: { url },
-        mimetype: 'audio/mpeg',
-        fileName: `${title}.mp3`,
-        ptt: false,
-        contextInfo: {
-          externalAdReply: {
-            title: "Now Playing 🎶",
-            body: "Powered by Pkdriller",
-            thumbnailUrl: "https://files.catbox.moe/glt48n.jpg",
-            mediaType: 1,
-            renderLargerThumbnail: true,
-            showAdAttribution: true,
-            sourceUrl: config.channel || "https://whatsapp.com/channel/0029VaEHtKbGZh5jv40qxk0D",
-          },
-          forwardingScore: 999,
-          isForwarded: true,
-          forwardedNewsletterMessageInfo: {
-            newsletterJid: '120363204318084784@newsletter',
-            newsletterName: config.botname,
-            serverMessageId: 100
-          }
-        }
-      }, { quoted: qmsg })
+            const resData = await fetch(apiUrl);
+            const data = await resData.json();
+            const dlUrl = data.url || data.result?.url || data.result?.downloadUrl;
 
-    } catch (err) {
-      console.error(err)
-      return m.reply('*⚠️ Failed to download audio. Try another source.*')
-    }
-  }
+            if (!dlUrl) return reply("❌ Failed to retrieve audio URL. Try another source.");
 
-  // Listener setup
-  const listener = ({ messages }) => {
-    if (messages && messages[0]) {
-      handler(messages[0])
-    }
-  }
+            await conn.sendMessage(from, {
+                audio: { url: dlUrl },
+                mimetype: "audio/mpeg",
+                fileName: `${song.title}.mp3`,
+                contextInfo: {
+                    externalAdReply: {
+                        title: song.title.length > 25 ? `${song.title.substring(0, 22)}...` : song.title,
+                        body: "Via Source Selector",
+                        thumbnailUrl: song.thumbnail.replace('default.jpg', 'hqdefault.jpg'),
+                        sourceUrl: config.channel || 'https://whatsapp.com/channel/0029Vad7YNyJuyA77CtIPX0x',
+                        showAdAttribution: true,
+                        renderLargerThumbnail: true
+                    }
+                }
+            }, { quoted: mek });
+        };
 
-  conn.ev.on('messages.upsert', listener)
+        const listener = conn.ev.on('messages.upsert', handler);
 
-  // Timeout: remove listener after 30 seconds
-  setTimeout(() => {
-    conn.ev.off('messages.upsert', listener)
-  }, 30000)
-})
-            
+        // Remove after 30 seconds
+        setTimeout(() => conn.ev.off('messages.upsert', handler), 30000);
+    } catch (err) {
+        console.error(err);
+        reply("⚠️ Something went wrong. Please try again.");
+    }
+});
+              

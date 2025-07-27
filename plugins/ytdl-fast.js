@@ -1,104 +1,163 @@
 const config = require('../config');
 const { cmd } = require('../command');
-const { ytsearch } = require('@dark-yasiya/yt-dl.js');
+const axios = require('axios');
+const ytSearch = require('yt-search');
 
-// MP4 video download
+cmd({
+  pattern: "play",
+  alias: ["song", "audio", "mp3", "playdoc"],
+  desc: "Play music from YouTube, Spotify or SoundCloud",
+  category: "main",
+  filename: __filename,
+  react: "🎵"
+}, async (conn, m, msg, { q, sender, from, reply }) => {
 
-cmd({ 
-    pattern: "mp4", 
-    alias: ["video"], 
-    react: "🎥", 
-    desc: "Download YouTube video", 
-    category: "main", 
-    use: '.mp4 < Yt url or Name >', 
-    filename: __filename 
-}, async (conn, mek, m, { from, prefix, quoted, q, reply }) => { 
-    try { 
-        if (!q) return await reply("Please provide a YouTube URL or video name.");
-        
-        const yt = await ytsearch(q);
-        if (yt.results.length < 1) return reply("No results found!");
-        
-        let yts = yt.results[0];  
-        let apiUrl = `https://apis.davidcyriltech.my.id/download/ytmp4?url=${encodeURIComponent(yts.url)}`;
-        
-        let response = await fetch(apiUrl);
-        let data = await response.json();
-        
-        if (data.status !== 200 || !data.success || !data.result.download_url) {
-            return reply("Failed to fetch the video. Please try again later.");
-        }
+  if (!q) return reply("Please provide a song name or URL.");
 
-        let ytmsg = `📹 *Video Downloader*
-🎬 *Title:* ${yts.title}
-⏳ *Duration:* ${yts.timestamp}
-👀 *Views:* ${yts.views}
-👤 *Author:* ${yts.author.name}
-🔗 *Link:* ${yts.url}
-> Powered By pk-tech inc`;
+  // Platforms
+  const query = q;
+  const platforms = [];
+  if (query.includes('youtube.com') || query.includes('youtu.be')) platforms.push('youtube');
+  if (query.includes('soundcloud.com')) platforms.push('soundcloud');
+  if (query.includes('spotify.com')) platforms.push('spotify');
+  if (platforms.length === 0) platforms.push('youtube', 'soundcloud', 'spotify');
 
-        // Send video directly with caption
-        await conn.sendMessage(
-            from, 
-            { 
-                video: { url: data.result.download_url }, 
-                caption: ytmsg,
-                mimetype: "video/mp4"
-            }, 
-            { quoted: mek }
-        );
+  let track = null;
+  let downloadData = null;
 
-    } catch (e) {
-        console.log(e);
-        reply("An error occurred. Please try again later.");
-    }
-});
+  // Search functions
+  const searchYouTube = async (query) => {
+    const { videos } = await ytSearch(query);
+    return videos?.length ? {
+      platform: 'youtube',
+      title: videos[0].title,
+      url: videos[0].url,
+      thumbnail: videos[0].thumbnail
+    } : null;
+  };
 
-// MP3 song download 
+  const searchSoundCloud = async (query) => {
+    const res = await axios.get(`https://apis-keith.vercel.app/search/soundcloud?q=${encodeURIComponent(query)}`);
+    const tracks = res.data?.result?.result?.filter(track => track.timestamp) || [];
+    return tracks.length ? {
+      platform: 'soundcloud',
+      title: tracks[0].title,
+      url: tracks[0].url,
+      thumbnail: tracks[0].thumbnail || ""
+    } : null;
+  };
 
-cmd({ 
-    pattern: "song", 
-    alias: ["play", "mp3"], 
-    react: "🎶", 
-    desc: "Download YouTube song", 
-    category: "main", 
-    use: '.song <query>', 
-    filename: __filename 
-}, async (conn, mek, m, { from, sender, reply, q }) => { 
+  const searchSpotify = async (query) => {
+    const res = await axios.get(`https://apis-keith.vercel.app/search/spotify?q=${encodeURIComponent(query)}`);
+    const result = res.data?.result?.[0];
+    return result ? {
+      platform: 'spotify',
+      title: result.title,
+      url: result.url,
+      artist: result.artists,
+      thumbnail: result.image
+    } : null;
+  };
+
+  // Download functions
+  const downloadYouTube = async (url) => {
+    const res = await axios.get(`https://apis-keith.vercel.app/download/dlmp3?url=${encodeURIComponent(url)}`);
+    return res.data?.result?.downloadUrl ? {
+      downloadUrl: res.data.result.downloadUrl,
+      format: 'mp3'
+    } : null;
+  };
+
+  const downloadSoundCloud = async (url) => {
+    const res = await axios.get(`https://apis-keith.vercel.app/download/soundcloud?url=${encodeURIComponent(url)}`);
+    return res.data?.result?.track?.downloadUrl ? {
+      downloadUrl: res.data.result.track.downloadUrl,
+      format: 'mp3'
+    } : null;
+  };
+
+  const downloadSpotify = async (url) => {
+    const res = await axios.get(`https://api.siputzx.my.id/api/d/spotify?url=${encodeURIComponent(url)}`);
+    return res.data?.data?.download ? {
+      downloadUrl: res.data.data.download,
+      format: 'mp3',
+      artist: res.data.data.artis,
+      thumbnail: res.data.data.image
+    } : null;
+  };
+
+  // Search and Download loop
+  for (const platform of platforms) {
     try {
-        if (!q) return reply("Please provide a song name or YouTube link.");
+      const searchFn = { youtube: searchYouTube, soundcloud: searchSoundCloud, spotify: searchSpotify }[platform];
+      const downloadFn = { youtube: downloadYouTube, soundcloud: downloadSoundCloud, spotify: downloadSpotify }[platform];
 
-        const yt = await ytsearch(q);
-        if (!yt.results.length) return reply("No results found!");
+      track = await searchFn(query);
+      if (!track) continue;
 
-        const song = yt.results[0];
-        const apiUrl = `https://apis.davidcyriltech.my.id/youtube/mp3?url=${encodeURIComponent(song.url)}`;
-        
-        const res = await fetch(apiUrl);
-        const data = await res.json();
-
-        if (!data?.result?.downloadUrl) return reply("Download failed. Try again later.");
-
-    await conn.sendMessage(from, {
-    audio: { url: data.result.downloadUrl },
-    mimetype: "audio/mpeg",
-    fileName: `${song.title}.mp3`,
-    contextInfo: {
-        externalAdReply: {
-            title: song.title.length > 25 ? `${song.title.substring(0, 22)}...` : song.title,
-            body: "Join our WhatsApp Channel",
-            mediaType: 1,
-            thumbnailUrl: song.thumbnail.replace('default.jpg', 'hqdefault.jpg'),
-            sourceUrl: 'https://whatsapp.com/channel/0029Vad7YNyJuyA77CtIPX0x',
-            mediaUrl: 'https://whatsapp.com/channel/0029Vad7YNyJuyA77CtIPX0x',
-            showAdAttribution: true,
-            renderLargerThumbnail: true
-        }
+      downloadData = await downloadFn(track.url);
+      if (downloadData) break;
+    } catch (e) {
+      console.log(`[${platform} Error]`, e);
+      continue;
     }
-}, { quoted: mek });
+  }
 
-    } catch (error) {
-        console.error(error);
-        reply("An error occurred. Please try again.");
+  if (!track || !downloadData) return reply("❌ Could not download from any platform.");
+
+  // Construct contextInfo
+  const fakeVCard = {
+    key: {
+      fromMe: false,
+      participant: "0@s.whatsapp.net",
+      remoteJid: "status@broadcast"
+    },
+    message: {
+      contactMessage: {
+        displayName: "WhatsApp",
+        vcard: "BEGIN:VCARD\nVERSION:3.0\nFN:WhatsApp Verified\nORG:WhatsApp Inc.\nTEL;type=CELL;type=VOICE;waid=447710173736:+44 7710 173736\nEND:VCARD"
+      }
     }
+  };
+
+  const contextInfo = {
+    quoted: fakeVCard,
+    forwardingScore: 999,
+    isForwarded: true,
+    forwardedNewsletterMessageInfo: {
+      newsletterJid: "120363313124070136@newsletter",
+      newsletterName: "PK-XMD Music",
+      serverMessageId: Math.floor(100000 + Math.random() * 999999)
+    },
+    externalAdReply: {
+      title: track.title.length > 25 ? track.title.slice(0, 22) + "..." : track.title,
+      body: "Now Playing via PK-XMD",
+      thumbnailUrl: downloadData.thumbnail || track.thumbnail || config.LOGO_URL,
+      mediaType: 1,
+      renderLargerThumbnail: true,
+      sourceUrl: track.url,
+      showAdAttribution: true
+    }
+  };
+
+  const artist = downloadData.artist || track.artist || "Unknown Artist";
+  const fileName = `${track.title} - ${artist}.${downloadData.format}`.replace(/[^\w\s.-]/gi, '');
+
+  // Send audio
+  await conn.sendMessage(from, {
+    audio: { url: downloadData.downloadUrl },
+    mimetype: 'audio/mp4',
+    contextInfo
+  }, { quoted: m });
+
+  // Send as document too
+  await conn.sendMessage(from, {
+    document: { url: downloadData.downloadUrl },
+    mimetype: `audio/${downloadData.format}`,
+    fileName,
+    caption: `🎶 *${track.title}* by *${artist}* (as document)`,
+    contextInfo
+  }, { quoted: m });
+
 });
+    

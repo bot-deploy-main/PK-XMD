@@ -2,17 +2,16 @@
 
 𝐒𝐢𝐦𝐩𝐥𝐞 𝐁𝐞𝐬𝐭 𝐖𝐡𝐚𝐭𝐬𝐚𝐩𝐩 𝐁𝐨𝐭 𝐂𝐫𝐞𝐚𝐭𝐞𝐝 𝐁𝐲 Mr Pkdriller 🔮💚
 <p align="center">
-  <img src="https://files.catbox.moe/uu0k7n.jpg" />
+  <img src="https://files.catbox.moe/kroie9.jpg" />
 </p>
 
-<
+
 <div align="center">
 
  
 
 ## 𝐃𝐄𝐏𝐋𝐎𝐘 𝐒𝐄𝐓𝐔𝐏 ↕️
-
-* MUST FORK AND STAR THIS REPO 
+**MUST FORK AND STAR THIS REPO**
 
   <a href="https://github.com/mejjar00254/PK-XMD/fork"><img src="https://img.shields.io/github/forks/NaCkS-ai/PK-XMD?style=for-the-badge&logo=github&color=4c1&label=Fork%20PK-XMD" alt="Fork PK X MD" /></a>
 

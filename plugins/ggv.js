@@ -1,39 +1,22 @@
-const config = require('../config');
-const { cmd } = require('../command');
-const axios = require('axios');
+const config = require("../config");
+const { cmd } = require("../command");
+const axios = require("axios");
+const { getBuffer } = require("../lib/functions");
 
 cmd({
   pattern: "video",
-  alias: ["ytmp4", "mp4", "ytvideo", "dlmp4"],
-  desc: "Download YouTube Video",
-  category: "main",
+  alias: ["ytmp4", "mp4"],
+  desc: "Download YouTube video",
+  category: "Downloaders",
+  use: "<song name or YouTube link>",
   filename: __filename,
-  react: "🎥"
-}, async (conn, m, msg, { q, from, sender, reply }) => {
-  if (!q) return reply("Please provide a video name or YouTube URL.");
+  react: "📹"
+}, async (m, query, conn) => {
+  if (!query) return m.reply("Please provide a song name or YouTube link!");
 
-  const apis = [
-    `https://api-dl-01.vercel.app/youtube/playmp4?q=${encodeURIComponent(q)}`,
-    `https://apis-davidcyriltech.my.id/youtube/playmp4?q=${encodeURIComponent(q)}`,
-    `https://yt-api.onrender.com/api/playmp4?q=${encodeURIComponent(q)}`
-  ];
+  const thumb = "https://files.catbox.moe/fgiecg.jpg";
 
-  let result = null;
-  for (let api of apis) {
-    try {
-      const res = await axios.get(api);
-      if (res.data?.result?.url) {
-        result = res.data.result;
-        break;
-      }
-    } catch (e) {
-      console.log(`[Video API Error]`, e.message);
-    }
-  }
-
-  if (!result) return reply("❌ Failed to fetch video. Please try another link or keyword.");
-
-  const fakeVCard = {
+  const fakeQuoted = {
     key: {
       fromMe: false,
       participant: "0@s.whatsapp.net",
@@ -41,44 +24,62 @@ cmd({
     },
     message: {
       contactMessage: {
-        displayName: "WhatsApp",
-        vcard: "BEGIN:VCARD\nVERSION:3.0\nFN:WhatsApp Verified\nORG:WhatsApp Inc.\nTEL;type=CELL;type=VOICE;waid=447710173736:+44 7710 173736\nEND:VCARD"
+        displayName: "YouTube Downloader",
+        vcard: `BEGIN:VCARD\nVERSION:3.0\nN:;YouTube Downloader;;;\nFN:YouTube Downloader\nORG:Powered by Pkdriller\nTEL;type=CELL;type=VOICE;waid=254700000000:+254700000000\nEND:VCARD`}}
+  };
+
+  const context = {
+    contextInfo: {
+      externalAdReply: {
+        title: "PK-XMD YT VIDEO DOWNLOADER",
+        body: "Powered by Pkdriller",
+        thumbnail: await getBuffer(thumb),
+        mediaType: 1,
+        renderLargerThumbnail: false,
+        showAdAttribution: true,
+        sourceUrl: "https://youtube.com"
+      },
+      forwardingScore: 9999,
+      isForwarded: true,
+      forwardedNewsletterMessageInfo: {
+        newsletterJid: "120363027322595636@newsletter",
+        newsletterName: config.botname,
+        serverMessageId: 100
       }
-    }
-  };
-
-  const contextInfo = {
-    quoted: fakeVCard,
-    forwardingScore: 999,
-    isForwarded: true,
-    forwardedNewsletterMessageInfo: {
-      newsletterJid: "120363313124070136@newsletter",
-      newsletterName: "PK-XMD Videos",
-      serverMessageId: Math.floor(100000 + Math.random() * 999999)
     },
-    externalAdReply: {
-      title: result.title.length > 25 ? result.title.slice(0, 22) + "..." : result.title,
-      body: "Now Playing via PK-XMD",
-      thumbnailUrl: "https://files.catbox.moe/fgiecg.jpg",
-      mediaType: 1,
-      renderLargerThumbnail: true,
-      sourceUrl: result.source || result.url,
-      showAdAttribution: true
-    }
+    quoted: fakeQuoted
   };
 
-  await conn.sendMessage(from, {
-    video: { url: result.url },
-    caption: `🎥 *${result.title}*\n⏱️ Duration: ${result.duration || "N/A"}\n🎬 Channel: ${result.channel || "Unknown"}`,
-    mimetype: "video/mp4",
-    contextInfo
-  }, { quoted: m });
+  let apis = [
+    `https://api.siputzx.my.id/api/download/youtube?query=${encodeURIComponent(query)}`,
+    `https://dreaded.site/api/ytmp4?query=${encodeURIComponent(query)}`,
+    `https://apis.davidcyriltech.my.id/youtube/mp4?query=${encodeURIComponent(query)}`
+  ];
 
-  await conn.sendMessage(from, {
-    document: { url: result.url },
-    mimetype: "video/mp4",
-    fileName: `${result.title.replace(/[^\w\s.-]/gi, '')}.mp4`,
-    caption: `📄 *${result.title}* (as document)`,
-    contextInfo
-  }, { quoted: m });
+  let success = false;
+  for (let url of apis) {
+    try {
+      let { data } = await axios.get(url);
+      let dl_url = data?.url || data?.result?.url || data?.result?.downloadUrl;
+      let title = data?.title || data?.result?.title || "Downloaded Video";
+
+      if (!dl_url) continue;
+
+      await conn.sendMessage(m.chat, {
+        video: { url: dl_url },
+        caption: `📹 *Title:* ${title}\n✅ Successfully downloaded by *PK-XMD*`,
+        mimetype: "video/mp4"
+      }, context);
+
+      success = true;
+      break;
+    } catch (e) {
+      continue;
+    }
+  }
+
+  if (!success) {
+    await m.reply("❌ Failed to fetch video. Please try another keyword or check the link.");
+  }
 });
+    
